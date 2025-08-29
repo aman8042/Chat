@@ -1,0 +1,6 @@
+{
+  "java.project.referencedLibraries": [
+    "commons-net-3.12.0.jar",
+    "commons-io-2.20.0.jar"
+  ]
+}

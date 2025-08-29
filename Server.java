@@ -1,91 +1,113 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.*;
-class Server
-{
+import org.apache.commons.net.ftp.FTP;
+import org.apache.commons.net.ftp.FTPClient;
+
+class Server {
     ServerSocket server;
     Socket socket;
-    BufferedReader br; // data reading:
-    PrintWriter out; // data writing:
-    //constructor bnana hai:
-public Server(){
-    try{
+    BufferedReader br; 
+    PrintWriter out;
 
-        server = new ServerSocket(7777);
-        System.out.println("server is ready to accept connection");
-        System.out.println("waiting......");
-        socket = server.accept();
-
-        br = new BufferedReader( new InputStreamReader( socket.getInputStream()));  // data andr lene ka kaam ;
-        out = new PrintWriter(socket.getOutputStream()); // data baahr fekne ka kaam ;
-         
-        startReading();
-        startWriting();
-
-    } catch(Exception e){
-        e.printStackTrace();
-    }
-}
-
-   public void startReading(){
-    // thread to read the data
-
-    Runnable r1=()->{
-
-        System.out.println("reader started......");
-        
-        while(true){
+    public Server() {
         try {
-            
-            
-                String msg = br.readLine();
-                if(msg.equals("Terminate")){
-                System.out.println("Client terminated the chat ");
-                break;
-            } 
-            System.out.println("Client :" + msg );
-        }catch (Exception e) {
-                // TODO Auto-generated catch block
+            server = new ServerSocket(7777);
+            System.out.println("Server ready. Waiting for client...");
+            socket = server.accept();
+
+            br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(socket.getOutputStream());
+
+            startReading();
+            startWriting();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ✅ Reading messages from client
+    public void startReading() {
+        Runnable r1 = () -> {
+            System.out.println("Reader started...");
+            try {
+                String msg;
+                while ((msg = br.readLine()) != null) {
+                    if (msg.equals("Terminate")) {
+                        System.out.println("Client ended chat.");
+                        break;
+                    }
+
+                    // ✅ Detect FTP link
+                    if (msg.startsWith("File available at: ftp://")) {
+                        System.out.println("Client sent a file link: " + msg);
+                        String ftpUrl = msg.substring("File available at: ".length());
+                        downloadFileFromFTP(ftpUrl, "downloads/");
+                    } else {
+                        System.out.println("Client: " + msg);
+                    }
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-        }   
-            
-    };
+        };
+        new Thread(r1).start();
+    }
 
-    new Thread(r1).start();  // this could be done in two ways. firstly ya to thread extend krke ya  fir thread  runnable constructor ko call krke
-    
-   }
-   public void startWriting(){
-    // this  thread will take data from the user and send it to the client:
-     Runnable r2 = ()-> {
-        
-        while (true) {
-        try {
-            
-                BufferedReader br1 = new BufferedReader(new InputStreamReader(System.in));
-                String content = br1.readLine();
-                out.println(content);
-                out.flush();
-        }    
-
-            
-            catch(Exception e) 
-            {
-               e.printStackTrace();
+    // ✅ Writing messages to client
+    public void startWriting() {
+        Runnable r2 = () -> {
+            try (BufferedReader console = new BufferedReader(new InputStreamReader(System.in))) {
+                while (true) {
+                    String content = console.readLine();
+                    out.println(content);
+                    out.flush();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+        };
+        new Thread(r2).start();
+    }
+
+    // ✅ FTP Download Helper
+    private void downloadFileFromFTP(String ftpUrl, String saveDir) {
+        try {
+            // Example: ftp://127.0.0.1/photo.jpg
+            URL url = new URL(ftpUrl);
+            String server = url.getHost();
+            int port = (url.getPort() == -1) ? 21 : url.getPort();
+            String remoteFile = url.getPath().substring(1); // remove leading '/'
+            String fileName = new File(remoteFile).getName();
+
+            FTPClient ftp = new FTPClient();
+            ftp.connect(server, port);
+            ftp.login("aman", "1234"); // no credentials
+            ftp.enterLocalPassiveMode();
+            ftp.setFileType(FTP.BINARY_FILE_TYPE);
+
+            File downloadDir = new File(saveDir);
+            if (!downloadDir.exists()) downloadDir.mkdirs();
+
+            FileOutputStream fos = new FileOutputStream(saveDir + fileName);
+            boolean success = ftp.retrieveFile(remoteFile, fos);
+            fos.close();
+
+            ftp.logout();
+            ftp.disconnect();
+
+            if (success) {
+                System.out.println("✅ File downloaded to: " + saveDir + fileName);
+            } else {
+                System.out.println(" Failed to download file from FTP.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-     };
+    }
 
-     
-
-     new Thread(r2).start();  // this could be done in two ways. firstly ya to thread extend krke ya  fir thread  runnable constructor ko call krke.
-   }
-    
-    
     public static void main(String[] args) {
-        System.out.println("mike check: ");
         new Server();
     }
 }
